@@ -49,7 +49,7 @@ class RealTimeFaceEmotionRecognition:
     def _create_db_path(self):
         """ Create a directory to store the face database. """
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        db_path = f"face_database_{timestamp}/"
+        db_path = f"face_database/face_database_{timestamp}/"
         os.makedirs(db_path)
         return db_path
 
@@ -161,19 +161,22 @@ class RealTimeFaceEmotionRecognition:
         tick = cv2.getTickCount()
         # Detect faces
         faces = self.detect_faces_dnn(frame)
+        face_centers = []
         
         # Recognize faces
         for (x, y, w, h) in faces:
             # Extract face ROI for recognition and emotion analysis
             face_roi = frame[y:y + h, x:x + w]
+            face_centers.append(np.array([x+w//2, y+h//2]))
             
             # Recognize face
+            if h == 0 or w == 0: continue
             face_id = self.recognize_face(face_roi)
             
             # Perform emotion analysis
             emotion_result = DeepFace.analyze(
-                face_roi, 
-                actions=['emotion'], 
+                face_roi,
+                actions=['emotion'],
                 enforce_detection=False
             )
             emotion = emotion_result[0]['dominant_emotion']
@@ -191,6 +194,28 @@ class RealTimeFaceEmotionRecognition:
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.putText(frame, f'{face_id} - {emotion}', (x, y - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+
+        def draw_line(img, p1, p2):
+            cv2.line(img, p1, p2, (0, 0, 255), 2)
+            distance = np.linalg.norm(p1-p2)
+            cv2.putText(img, f'{distance:.2f}', (p1+p2)//2,
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+            return distance
+
+        def angle_between(v1, v2):
+            v1_u = v1 / np.linalg.norm(v1)
+            v2_u = v2 / np.linalg.norm(v2)
+            return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
+        if len(faces) == 2:
+            center = frame.shape[1]//2, frame.shape[0]//2
+            draw_line(frame, face_centers[0], face_centers[1])
+            draw_line(frame, face_centers[0], center)
+            draw_line(frame, face_centers[1], center)
+            angle = np.degrees(angle_between(center-face_centers[0], center-face_centers[1]))
+            cv2.putText(frame, f'{angle:.2f}', center,
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
         
         # Calculate the FPS
         time_diff = (tick - self.prev_tick) / cv2.getTickFrequency()
@@ -213,7 +238,7 @@ class RealTimeFaceEmotionRecognition:
                 break
             
             frame = self.process_frame(frame)
-            
+
             cv2.imshow('Real-time Face Recognition & Emotion Detection', frame)
             
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -241,8 +266,8 @@ class RealTimeFaceEmotionRecognition:
 
         
 if __name__ == "__main__":
-    prototxt_path = '/Users/jidongzheng/Desktop/MirrorBot/FacialEmotion/deploy.prototxt.txt'
-    model_path = '/Users/jidongzheng/Desktop/MirrorBot/FacialEmotion/res10_300x300_ssd_iter_140000.caffemodel'
+    prototxt_path = 'deploy.prototxt.txt'
+    model_path = 'res10_300x300_ssd_iter_140000.caffemodel'
     
     face_recognition_model = 'VGG-Face'
     emotion_recognition_model = 'Emotion'
