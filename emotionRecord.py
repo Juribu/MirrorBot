@@ -5,10 +5,11 @@ import numpy as np
 import os
 import datetime
 import pandas as pd
+
 import serial
 from tensorboard.summary.v1 import image
 
-arduino = serial.Serial(port='/dev/cu.usbmodem11401', baudrate=9600)
+arduino = serial.Serial(port='/dev/cu.usbmodem1401', baudrate=9600)
 
 class RealTimeFaceEmotionRecognition:
     def __init__(self,
@@ -219,28 +220,33 @@ class RealTimeFaceEmotionRecognition:
         cv2.line(frame, (img_center[0]+detection_thresh, 0), (img_center[0]+detection_thresh, frame.shape[0]), (0, 0, 255), 2)
 
         if len(faces) == 2:
-            # draw_line(frame, face_centers[0], center)
-            # draw_line(frame, face_centers[1], center)
-            # angle = np.degrees(angle_between(center-face_centers[0], center-face_centers[1]))
-            # cv2.putText(frame, f'{angle:.2f}', center,
-            #             cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
-        
-        # Calculate the FPS
-
             draw_line(frame, face_centers[0], face_centers[1])
-            x_midpoint = np.abs(face_centers[0][0] + face_centers[1][0])//2
-            cv2.circle(frame, ((face_centers[0][0] + face_centers[1][0])//2, (face_centers[0][1] + face_centers[1][1])//2), 10, (0, 255, 0), -1)
+            face_midpoint = np.array([(face_centers[0][0] + face_centers[1][0])//2, (face_centers[0][1] + face_centers[1][1])//2])
+            cv2.circle(frame, face_midpoint, 10, (0, 255, 0), -1)
 
-            print(x_midpoint - img_center[0])
-            if np.abs(x_midpoint - img_center[0]) < detection_thresh:
+            # print(face_midpoint[0] - img_center[0])
+            if np.abs(face_midpoint[0] - img_center[0]) < detection_thresh:
                 print('centered!')
-            elif x_midpoint < img_center[0]:
-                print('moving cam right!')
+                y_diff = face_midpoint[1] - img_center[1] # subtract constant to translate to mirror coord system
+                print(y_diff)
+                distance_from_cam = 90
+                alpha = 1 # inch to pixel
+                tilt_theta = np.degrees(np.arctan2(y_diff*alpha, distance_from_cam))
+                for i in range(tilt_theta):
+                    arduino.write(bytes('M', 'utf-8'))
+                    arduino.write(bytes('D', 'utf-8'))
+            elif face_midpoint[0] < img_center[0]:
+                arduino.write(bytes('C', 'utf-8'))
+                arduino.write(bytes('R', 'utf-8'))
+                arduino.write(bytes('M', 'utf-8'))
                 arduino.write(bytes('R', 'utf-8'))
             else:
-                print('moving cam left!')
+                arduino.write(bytes('C', 'utf-8'))
                 arduino.write(bytes('L', 'utf-8'))
-
+                arduino.write(bytes('M', 'utf-8'))
+                arduino.write(bytes('L', 'utf-8'))
+        
+        # Calculate the FPS
         time_diff = (tick - self.prev_tick) / cv2.getTickFrequency()
         self.prev_tick = tick  
         self.fps = 1.0 / time_diff
