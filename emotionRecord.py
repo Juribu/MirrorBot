@@ -12,6 +12,9 @@ from tensorboard.summary.v1 import image
 arduino = serial.Serial(port='/dev/cu.usbmodem11401', baudrate=9600)
 
 offset = 0
+offsetY = 358
+constantY = 0.03
+mirror_tilt = 0
 
 class RealTimeFaceEmotionRecognition:
     def __init__(self,
@@ -210,11 +213,6 @@ class RealTimeFaceEmotionRecognition:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
             return distance
 
-        def angle_between(v1, v2):
-            v1_u = v1 / np.linalg.norm(v1)
-            v2_u = v2 / np.linalg.norm(v2)
-            return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-
         detection_thresh = 50
         img_center = (frame.shape[1]//2) - offset, frame.shape[0]//2
         cv2.line(frame, (img_center[0], 0), (img_center[0], frame.shape[0]), (0, 0, 255), 2)
@@ -225,18 +223,22 @@ class RealTimeFaceEmotionRecognition:
             draw_line(frame, face_centers[0], face_centers[1])
             face_midpoint = np.array([(face_centers[0][0] + face_centers[1][0])//2, (face_centers[0][1] + face_centers[1][1])//2])
             cv2.circle(frame, face_midpoint, 10, (0, 255, 0), -1)
+            cv2.circle(frame, img_center, 10, (0, 255, 0), -1)
+            cv2.circle(frame, (img_center[0], img_center[1]-offsetY), 10, (0, 255, 0), -1)
 
-            # print(face_midpoint[0] - img_center[0])
+            global mirror_tilt
             if np.abs(face_midpoint[0] - img_center[0]) < detection_thresh:
-                print('centered!')
-                # y_diff = face_midpoint[1] - img_center[1] # subtract constant to translate to mirror coord system
-                # print(y_diff)
-                # distance_from_cam = 90
-                # alpha = 1 # inch to pixel
-                # tilt_theta = np.degrees(np.arctan2(y_diff*alpha, distance_from_cam))
-                # for i in range(tilt_theta):
-                #     arduino.write(bytes('M', 'utf-8'))
-                #     arduino.write(bytes('D', 'utf-8'))
+                y_diff = face_midpoint[1] - (img_center[1] - offsetY)
+                desired_tilt = y_diff * constantY
+                print(mirror_tilt, desired_tilt)
+                if np.abs(desired_tilt - mirror_tilt) > 1:
+                    move = desired_tilt - mirror_tilt
+                    mirror_tilt += move
+                    for i in range(abs(int(move))):
+                        arduino.write(bytes('M', 'utf-8'))
+                        arduino.write(bytes('U' if move < 0 else 'D', 'utf-8'))
+                else:
+                    print('y centered')
             elif face_midpoint[0] < img_center[0]:
                 arduino.write(bytes('C', 'utf-8'))
                 arduino.write(bytes('R', 'utf-8'))

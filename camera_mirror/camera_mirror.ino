@@ -5,7 +5,7 @@ Servo mirrorUD; // up/down rotation
 Servo camera;
 
 // set 0 positions for servos
-int mirrorLRHome = 35;
+int mirrorLRHome = 34;
 int mirrorUDHome = 55;
 
 int mirrorLRAngle = mirrorLRHome; 
