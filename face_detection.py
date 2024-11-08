@@ -22,14 +22,14 @@ fonts = cv2.FONT_HERSHEY_COMPLEX
 face_detector = cv2.CascadeClassifier("haarcascade_frontalface_default.xml") 
 
 # focal length finder function 
-def Focal_Length_Finder(measured_distance, real_width, width_in_rf_image): 
+def focal_length_finder(measured_distance, real_width, width_in_rf_image): 
 
 	# finding the focal length 
 	focal_length = (width_in_rf_image * measured_distance) / real_width 
 	return focal_length 
 
 # distance estimation function 
-def Distance_finder(Focal_Length, real_face_width, face_width_in_frame): 
+def distance_finder(Focal_Length, real_face_width, face_width_in_frame): 
 
 	distance = (real_face_width * Focal_Length)/face_width_in_frame 
 
@@ -40,9 +40,6 @@ def Distance_finder(Focal_Length, real_face_width, face_width_in_frame):
 def face_data(image): 
 
 	# returns face data on the first 2 faces in frame
-
-	face_width = 0 # making face width to zero 
-
 	# converting color image to gray scale image 
 	gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
 
@@ -75,15 +72,12 @@ ref_image = cv2.imread("ref_image.jpeg")
 # find the face width(pixels) in the reference_image 
 ref_image_face_widths = face_data(ref_image)
 
-# get the focal by calling "Focal_Length_Finder" 
+# get the focal by calling "focal_length_finder" 
 # face width in reference(pixels), 
 # Known_distance(centimeters), 
 # known_width(centimeters) 
-focal_length = Focal_Length_Finder( 
+focal_length = focal_length_finder( 
 	Known_distance, Known_width, ref_image_face_widths[0]) 
-
-# show the reference image 
-cv2.imshow("ref_image", ref_image) 
 
 # initialize the camera object so that we 
 # can get frame from it 
@@ -113,10 +107,10 @@ while True:
 		# these arguments the Focal_Length, 
 		# Known_width(centimeters), 
 		# and Known_distance(centimeters) 
-		Distance_0 = Distance_finder( 
+		Distance_0 = distance_finder( 
 			focal_length, Known_width, face_width_in_frame_0) 
 		
-		Distance_1 = Distance_finder( 
+		Distance_1 = distance_finder( 
 			focal_length, Known_width, face_width_in_frame_1) 
 
 		# draw line as background of text 
