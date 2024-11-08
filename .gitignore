@@ -1,3 +1,5 @@
 face_database/
 .idea/
 venv/
+.DS_Store
+*.csv

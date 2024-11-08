@@ -9,7 +9,9 @@ import pandas as pd
 import serial
 from tensorboard.summary.v1 import image
 
-arduino = serial.Serial(port='/dev/cu.usbmodem1401', baudrate=9600)
+arduino = serial.Serial(port='/dev/cu.usbmodem11401', baudrate=9600)
+
+offset = 0
 
 class RealTimeFaceEmotionRecognition:
     def __init__(self,
@@ -214,7 +216,7 @@ class RealTimeFaceEmotionRecognition:
             return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
         detection_thresh = 50
-        img_center = frame.shape[1]//2, frame.shape[0]//2
+        img_center = (frame.shape[1]//2) - offset, frame.shape[0]//2
         cv2.line(frame, (img_center[0], 0), (img_center[0], frame.shape[0]), (0, 0, 255), 2)
         cv2.line(frame, (img_center[0]-detection_thresh, 0), (img_center[0]-detection_thresh, frame.shape[0]), (0, 0, 255), 2)
         cv2.line(frame, (img_center[0]+detection_thresh, 0), (img_center[0]+detection_thresh, frame.shape[0]), (0, 0, 255), 2)
@@ -227,14 +229,14 @@ class RealTimeFaceEmotionRecognition:
             # print(face_midpoint[0] - img_center[0])
             if np.abs(face_midpoint[0] - img_center[0]) < detection_thresh:
                 print('centered!')
-                y_diff = face_midpoint[1] - img_center[1] # subtract constant to translate to mirror coord system
-                print(y_diff)
-                distance_from_cam = 90
-                alpha = 1 # inch to pixel
-                tilt_theta = np.degrees(np.arctan2(y_diff*alpha, distance_from_cam))
-                for i in range(tilt_theta):
-                    arduino.write(bytes('M', 'utf-8'))
-                    arduino.write(bytes('D', 'utf-8'))
+                # y_diff = face_midpoint[1] - img_center[1] # subtract constant to translate to mirror coord system
+                # print(y_diff)
+                # distance_from_cam = 90
+                # alpha = 1 # inch to pixel
+                # tilt_theta = np.degrees(np.arctan2(y_diff*alpha, distance_from_cam))
+                # for i in range(tilt_theta):
+                #     arduino.write(bytes('M', 'utf-8'))
+                #     arduino.write(bytes('D', 'utf-8'))
             elif face_midpoint[0] < img_center[0]:
                 arduino.write(bytes('C', 'utf-8'))
                 arduino.write(bytes('R', 'utf-8'))
