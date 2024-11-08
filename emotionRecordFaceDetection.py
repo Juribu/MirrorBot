@@ -9,7 +9,7 @@ import pandas as pd
 import serial
 from tensorboard.summary.v1 import image
 
-arduino = serial.Serial(port='/dev/cu.usbmodem1401', baudrate=9600)
+# arduino = serial.Serial(port='/dev/cu.usbmodem1401', baudrate=9600)
 
 # Init. variables for the distance to face detection
 Known_distance = 76.2
@@ -171,38 +171,36 @@ class RealTimeFaceEmotionRecognition:
             print(f"New face detected, saved as {new_face_id}")
             return new_face_id
         
-    def draw_face_detection_results(frame, face_width_in_frame_0, face_width_in_frame_1, focal_length):
+    def draw_face_detection_results(self, frame, face_width_in_frame_0, face_width_in_frame_1, focal_length):
         if face_width_in_frame_0 == 0 and face_width_in_frame_1 == 0: 
-            return
+            return float('inf'), float('inf')
 		
         # finding the distance by calling function 
         # Distance finder function need 
         # these arguments the Focal_Length, 
         # Known_width(centimeters), 
         # and Known_distance(centimeters) 
-        Distance_0 = self.distance_finder(focal_length, Known_width, face_width_in_frame_0) 
+        distance_0 = self.distance_finder(focal_length, Known_width, face_width_in_frame_0) 
         
-        Distance_1 = self.distance_finder(focal_length, Known_width, face_width_in_frame_1) 
+        distance_1 = self.distance_finder(focal_length, Known_width, face_width_in_frame_1) 
 
         # draw line as background of text 
-        cv2.line(frame, (30, 30), (330, 30), RED, 32) 
-        cv2.line(frame, (30, 30), (330, 30), BLACK, 28) 
+        cv2.line(frame, (30, 110), (330, 110), RED, 32) 
+        cv2.line(frame, (30, 110), (330, 110), BLACK, 28) 
 
         cv2.line(frame, (30, 70), (330, 70), RED, 32) 
         cv2.line(frame, (30, 70), (330, 70), BLACK, 28) 
 
         # Drawing Text on the screen 
         cv2.putText( 
-          frame, f"Distance, face 0: {round(Distance_0,2)} CM", (30, 35), 
+          frame, f"Distance, face 0: {round(distance_0,2)} CM", (30, 75), 
         fonts, 0.6, GREEN, 2) 
 
         cv2.putText( 
-          frame, f"Distance, face 1: {round(Distance_1,2)} CM", (30, 75), 
+          frame, f"Distance, face 1: {round(distance_1,2)} CM", (30, 115), 
         fonts, 0.6, GREEN, 2) 
 
-        # show the frame on the screen 
-        cv2.imshow("frame", frame) 
-
+        return distance_0, distance_1
                 
     def process_frame(self, frame):
         """
@@ -217,7 +215,7 @@ class RealTimeFaceEmotionRecognition:
 
 
         # find the face width(pixels) in the reference_image 
-        ref_image_face_widths = self.face_data(self.ref_image)
+        _, ref_image_face_widths = self.detect_faces_dnn(self.ref_image)
 
         # get the focal by calling "focal_length_finder" 
         # face width in reference(pixels), 
@@ -237,6 +235,8 @@ class RealTimeFaceEmotionRecognition:
         face_width_in_frame_0 = face_widths[0]
         face_width_in_frame_1 = face_widths[1]
         
+        distance0, distance1 = self.draw_face_detection_results(frame, face_width_in_frame_0, face_width_in_frame_1, focal_length)
+
         # Recognize faces
         for (x, y, w, h) in faces:
             # Extract face ROI for recognition and emotion analysis
@@ -302,18 +302,21 @@ class RealTimeFaceEmotionRecognition:
                 alpha = 1 # inch to pixel
                 tilt_theta = np.degrees(np.arctan2(y_diff*alpha, distance_from_cam))
                 for i in range(tilt_theta):
-                    arduino.write(bytes('M', 'utf-8'))
-                    arduino.write(bytes('D', 'utf-8'))
+                    # arduino.write(bytes('M', 'utf-8'))
+                    # arduino.write(bytes('D', 'utf-8'))
+                    pass
             elif face_midpoint[0] < img_center[0]:
-                arduino.write(bytes('C', 'utf-8'))
-                arduino.write(bytes('R', 'utf-8'))
-                arduino.write(bytes('M', 'utf-8'))
-                arduino.write(bytes('R', 'utf-8'))
+                #arduino.write(bytes('C', 'utf-8'))
+                #arduino.write(bytes('R', 'utf-8'))
+                #arduino.write(bytes('M', 'utf-8'))
+                #arduino.write(bytes('R', 'utf-8'))
+                pass
             else:
-                arduino.write(bytes('C', 'utf-8'))
-                arduino.write(bytes('L', 'utf-8'))
-                arduino.write(bytes('M', 'utf-8'))
-                arduino.write(bytes('L', 'utf-8'))
+                #arduino.write(bytes('C', 'utf-8'))
+                #arduino.write(bytes('L', 'utf-8'))
+                #arduino.write(bytes('M', 'utf-8'))
+                #arduino.write(bytes('L', 'utf-8'))
+                pass
         
         # Calculate the FPS
         time_diff = (tick - self.prev_tick) / cv2.getTickFrequency()
