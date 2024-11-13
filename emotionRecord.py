@@ -7,14 +7,18 @@ import datetime
 import pandas as pd
 
 import serial
-from tensorboard.summary.v1 import image
 
 arduino = serial.Serial(port='/dev/cu.usbmodem11401', baudrate=9600)
+
+detection_thresh = 50
 
 offset = 0
 offsetY = 358
 constantY = 0.03
-mirror_tilt = 0
+
+camera_angle = 0
+mirror_x_angle = 0
+mirror_y_angle = 0
 
 class RealTimeFaceEmotionRecognition:
     def __init__(self,
@@ -213,7 +217,7 @@ class RealTimeFaceEmotionRecognition:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
             return distance
 
-        detection_thresh = 50
+        global detection_thresh, camera_angle, mirror_x_angle, mirror_y_angle
         img_center = (frame.shape[1]//2) - offset, frame.shape[0]//2
         cv2.line(frame, (img_center[0], 0), (img_center[0], frame.shape[0]), (0, 0, 255), 2)
         cv2.line(frame, (img_center[0]-detection_thresh, 0), (img_center[0]-detection_thresh, frame.shape[0]), (0, 0, 255), 2)
@@ -226,29 +230,25 @@ class RealTimeFaceEmotionRecognition:
             cv2.circle(frame, img_center, 10, (0, 255, 0), -1)
             cv2.circle(frame, (img_center[0], img_center[1]-offsetY), 10, (0, 255, 0), -1)
 
-            global mirror_tilt
             if np.abs(face_midpoint[0] - img_center[0]) < detection_thresh:
                 y_diff = face_midpoint[1] - (img_center[1] - offsetY)
                 desired_tilt = y_diff * constantY
-                print(mirror_tilt, desired_tilt)
-                if np.abs(desired_tilt - mirror_tilt) > 1:
-                    move = desired_tilt - mirror_tilt
-                    mirror_tilt += move
-                    for i in range(abs(int(move))):
-                        arduino.write(bytes('M', 'utf-8'))
-                        arduino.write(bytes('U' if move < 0 else 'D', 'utf-8'))
+                print(mirror_y_angle, desired_tilt)
+                if np.abs(desired_tilt - mirror_y_angle) > 1:
+                    mirror_y_angle += desired_tilt - mirror_y_angle
+                    arduino.write(("MY" + str(mirror_y_angle)).encode())
                 else:
                     print('y centered')
             elif face_midpoint[0] < img_center[0]:
-                arduino.write(bytes('C', 'utf-8'))
-                arduino.write(bytes('R', 'utf-8'))
-                arduino.write(bytes('M', 'utf-8'))
-                arduino.write(bytes('R', 'utf-8'))
+                camera_angle -= 1
+                mirror_x_angle -= 1
+                arduino.write(("C" + str(camera_angle)).encode())
+                arduino.write(("MX" + str(mirror_x_angle)).encode())
             else:
-                arduino.write(bytes('C', 'utf-8'))
-                arduino.write(bytes('L', 'utf-8'))
-                arduino.write(bytes('M', 'utf-8'))
-                arduino.write(bytes('L', 'utf-8'))
+                camera_angle += 1
+                mirror_x_angle += 1
+                arduino.write(("C" + str(camera_angle)).encode())
+                arduino.write(("MX" + str(mirror_x_angle)).encode())
         
         # Calculate the FPS
         time_diff = (tick - self.prev_tick) / cv2.getTickFrequency()
