@@ -1,4 +1,5 @@
 import cv2
+import numpy
 from deepface import DeepFace
 import time
 import numpy as np
@@ -8,17 +9,36 @@ import pandas as pd
 
 import serial
 
-arduino = serial.Serial(port='/dev/cu.usbmodem11401', baudrate=9600)
+arduino = serial.Serial(port='/dev/cu.usbmodem11401')
+time.sleep(2)
 
 detection_thresh = 50
 
 offset = 0
 offsetY = 358
 constantY = 0.03
+mirrorOffset_Horizontal = 6.25
 
 camera_angle = 0
 mirror_x_angle = 0
 mirror_y_angle = 0
+
+# Variables for the distance to face detection (in inches)
+known_distance_in = 24
+known_width_in = 6
+known_width_px = 430
+focal_length = (known_width_px * known_distance_in) / known_width_in # 1720
+
+GREEN = (0, 255, 0)
+RED = (0, 0, 255)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+FONT = cv2.FONT_HERSHEY_COMPLEX
+
+def distance_finder(face_width_in_frame):
+    if face_width_in_frame == 0: return float("inf")
+    distance = (known_width_in * focal_length) / face_width_in_frame
+    return distance
 
 class RealTimeFaceEmotionRecognition:
     def __init__(self,
@@ -155,7 +175,6 @@ class RealTimeFaceEmotionRecognition:
             cv2.imwrite(f'{self.db_path}{new_face_id}.jpg', face_roi)
             print(f"New face detected, saved as {new_face_id}")
             return new_face_id
-        
                 
     def process_frame(self, frame):
         """
@@ -176,12 +195,14 @@ class RealTimeFaceEmotionRecognition:
         # Detect faces
         faces = self.detect_faces_dnn(frame)
         face_centers = []
-        
+        face_widths = []
+
         # Recognize faces
         for (x, y, w, h) in faces:
             # Extract face ROI for recognition and emotion analysis
             face_roi = frame[y:y + h, x:x + w]
             face_centers.append(np.array([x+w//2, y+h//2]))
+            face_widths.append(w)
             
             # Recognize face
             if h == 0 or w == 0: continue
@@ -205,30 +226,38 @@ class RealTimeFaceEmotionRecognition:
             }
             
             # Draw bounding box and label
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), GREEN, 2)
             cv2.putText(frame, f'{face_id} - {emotion}', (x, y - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                        FONT, 0.9, GREEN, 2)
 
 
         def draw_line(img, p1, p2):
-            cv2.line(img, p1, p2, (0, 0, 255), 2)
+            cv2.line(img, p1, p2, RED, 2)
             distance = np.linalg.norm(p1-p2)
             cv2.putText(img, f'{distance:.2f}', (p1+p2)//2,
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+                        FONT, 0.9, RED, 2)
             return distance
 
         global detection_thresh, camera_angle, mirror_x_angle, mirror_y_angle
         img_center = (frame.shape[1]//2) - offset, frame.shape[0]//2
-        cv2.line(frame, (img_center[0], 0), (img_center[0], frame.shape[0]), (0, 0, 255), 2)
-        cv2.line(frame, (img_center[0]-detection_thresh, 0), (img_center[0]-detection_thresh, frame.shape[0]), (0, 0, 255), 2)
-        cv2.line(frame, (img_center[0]+detection_thresh, 0), (img_center[0]+detection_thresh, frame.shape[0]), (0, 0, 255), 2)
+        cv2.line(frame, (img_center[0], 0), (img_center[0], frame.shape[0]), RED, 2)
+        cv2.line(frame, (img_center[0]-detection_thresh, 0), (img_center[0]-detection_thresh, frame.shape[0]), RED, 2)
+        cv2.line(frame, (img_center[0]+detection_thresh, 0), (img_center[0]+detection_thresh, frame.shape[0]), RED, 2)
 
         if len(faces) == 2:
             draw_line(frame, face_centers[0], face_centers[1])
             face_midpoint = np.array([(face_centers[0][0] + face_centers[1][0])//2, (face_centers[0][1] + face_centers[1][1])//2])
-            cv2.circle(frame, face_midpoint, 10, (0, 255, 0), -1)
-            cv2.circle(frame, img_center, 10, (0, 255, 0), -1)
-            cv2.circle(frame, (img_center[0], img_center[1]-offsetY), 10, (0, 255, 0), -1)
+            distance_0 = distance_finder(face_widths[0])
+            distance_1 = distance_finder(face_widths[1])
+
+            print(distance_0, distance_1)
+
+            theta = int((np.degrees((numpy.arctan2(distance_0, mirrorOffset_Horizontal)))))
+            print(theta)
+
+            cv2.circle(frame, face_midpoint, 10, GREEN, -1)
+            cv2.circle(frame, img_center, 10, GREEN, -1)
+            cv2.circle(frame, (img_center[0], img_center[1]-offsetY), 10, GREEN, -1)
 
             if np.abs(face_midpoint[0] - img_center[0]) < detection_thresh:
                 y_diff = face_midpoint[1] - (img_center[1] - offsetY)
@@ -242,13 +271,17 @@ class RealTimeFaceEmotionRecognition:
             elif face_midpoint[0] < img_center[0]:
                 camera_angle -= 1
                 mirror_x_angle -= 1
-                arduino.write(("C" + str(camera_angle)).encode())
-                arduino.write(("MX" + str(mirror_x_angle)).encode())
+                print("mirror x angle ", mirror_x_angle)
+                # mirror_x_angle -= theta
+                arduino.write(("C" + str(camera_angle) + "\n").encode())
+                arduino.write(("MX" + str(mirror_x_angle) + "\n").encode())
             else:
                 camera_angle += 1
                 mirror_x_angle += 1
-                arduino.write(("C" + str(camera_angle)).encode())
-                arduino.write(("MX" + str(mirror_x_angle)).encode())
+                print("mirror x angle ", mirror_x_angle)
+                # mirror_x_angle += theta
+                arduino.write(("C" + str(camera_angle)+ "\n").encode())
+                arduino.write(("MX" + str(mirror_x_angle) + "\n").encode())
         
         # Calculate the FPS
         time_diff = (tick - self.prev_tick) / cv2.getTickFrequency()

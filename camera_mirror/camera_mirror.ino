@@ -32,7 +32,8 @@ void loop() {
     // angle is from -90 to 90 degrees
     String device = Serial.readStringUntil(' ');
     int angle = Serial.readStringUntil('\n').toInt();
-    angle = constrain(angle, -90, 90);
+    Serial.println("Received: " + angle);
+    // angle = constrain(angle, -90, 90);
 
     if (device == "C") {
       cameraAngle = cameraHome + angle;
