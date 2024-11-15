@@ -11,9 +11,17 @@ from tensorboard.summary.v1 import image
 
 # arduino = serial.Serial(port='/dev/cu.usbmodem1401', baudrate=9600)
 
-# Init. variables for the distance to face detection
-Known_distance = 76.2
-Known_width = 14.3 
+# Variables for the distance to face detection (in inches)
+known_distance_in = 24
+known_width_in = 6
+known_width_px = 430
+focal_length = (known_width_px * known_width_px) / known_distance_in # 1720
+
+def distance_finder(face_width_in_frame):
+    if face_width_in_frame == 0: return float("inf")
+    distance = (known_width_in * focal_length) / face_width_in_frame
+    return distance
+
 GREEN = (0, 255, 0) 
 RED = (0, 0, 255) 
 WHITE = (255, 255, 255) 
@@ -57,16 +65,6 @@ class RealTimeFaceEmotionRecognition:
         # Initialize video capture
         self.cap=cv2.VideoCapture(0)
 
-        # reading reference_image from directory 
-        self.ref_image = cv2.imread("ref_image.jpeg") 
-
-    def focal_length_finder(self, measured_distance, real_width, width_in_rf_image): 
-        focal_length = (width_in_rf_image * measured_distance) / real_width 
-        return focal_length 
-
-    def distance_finder(self, focal_length, real_face_width, face_width_in_frame): 
-        distance = (real_face_width * focal_length)/face_width_in_frame 
-        return distance 
         
     def is_database_empty(self):
         """Checks if the face database directory is empty."""
@@ -175,14 +173,9 @@ class RealTimeFaceEmotionRecognition:
         if face_width_in_frame_0 == 0 and face_width_in_frame_1 == 0: 
             return float('inf'), float('inf')
 		
-        # finding the distance by calling function 
-        # Distance finder function need 
-        # these arguments the Focal_Length, 
-        # Known_width(centimeters), 
-        # and Known_distance(centimeters) 
-        distance_0 = self.distance_finder(focal_length, Known_width, face_width_in_frame_0) 
-        
-        distance_1 = self.distance_finder(focal_length, Known_width, face_width_in_frame_1) 
+        # finding the distance to faces
+        distance_0 = distance_finder(face_width_in_frame_0)
+        distance_1 = distance_finder(face_width_in_frame_1)
 
         # draw line as background of text 
         cv2.line(frame, (30, 110), (330, 110), RED, 32) 
@@ -193,11 +186,11 @@ class RealTimeFaceEmotionRecognition:
 
         # Drawing Text on the screen 
         cv2.putText( 
-          frame, f"Distance, face 0: {round(distance_0,2)} CM", (30, 75), 
+          frame, f"Distance, face 0: {round(distance_0,2)} IN", (30, 75),
         fonts, 0.6, GREEN, 2) 
 
         cv2.putText( 
-          frame, f"Distance, face 1: {round(distance_1,2)} CM", (30, 115), 
+          frame, f"Distance, face 1: {round(distance_1,2)} IN", (30, 115),
         fonts, 0.6, GREEN, 2) 
 
         return distance_0, distance_1
@@ -212,16 +205,6 @@ class RealTimeFaceEmotionRecognition:
         Returns:
         - frame: The processed frame with bounding boxes and labels.
         """
-
-
-        # find the face width(pixels) in the reference_image 
-        _, ref_image_face_widths = self.detect_faces_dnn(self.ref_image)
-
-        # get the focal by calling "focal_length_finder" 
-        # face width in reference(pixels), 
-        # Known_distance(centimeters), 
-        # known_width(centimeters) 
-        focal_length = self.focal_length_finder(Known_distance, Known_width, ref_image_face_widths[0])
         
         # Resize and flip frame for consistency
         frame = cv2.resize(frame, (0, 0), fx=self.frame_resize_factor, fy=self.frame_resize_factor)
